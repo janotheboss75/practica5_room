@@ -23,6 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -87,6 +88,24 @@ fun BolsaScreen(pokemonViewModel: PokemonViewModel){
                     label = { Text(tipo) }
                 )
             }
+        }
+
+        // Obtenemos el nivel mínimo actual del ViewModel
+        val currentMinLevel by pokemonViewModel.minLevel.collectAsStateWithLifecycle()
+
+        Spacer(Modifier.height(16.dp))
+
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            Text(
+                text = "Nivel mínimo: ${currentMinLevel.toInt()}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Slider(
+                value = currentMinLevel,
+                onValueChange = { pokemonViewModel.setMinLevel(it) },
+                valueRange = 1f..100f, // Rango de nivel 1 a 100
+                steps = 100 // Para que se mueva de 1 en 1
+            )
         }
 
         // 3. Lista de Pokémon

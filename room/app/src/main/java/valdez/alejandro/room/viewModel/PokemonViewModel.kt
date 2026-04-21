@@ -120,15 +120,26 @@ class PokemonViewModel (private val repository: PokemonRepository) : ViewModel()
     // Estado para guardar el tipo seleccionado (null significa "Todos")
     val filterType = MutableStateFlow<String?>(null)
 
-    // Le pusimos "filteredPokemonsState" para que no marque error de duplicado
+    // Función para que la interfaz cambie el filtro
+    fun setFilterType(type: String?) {
+        filterType.value = type
+    }
+
+    // 1. Nuevo estado para el nivel mínimo (empezamos en 1)
+    val minLevel = MutableStateFlow(1f)
+
+    // 2. Actualizamos el combine para que use repository, filterType Y minLevel
     val filteredPokemonsState: StateFlow<List<PokemonEntity>> = combine(
         repository.allPokemons,
-        filterType
-    ) { pokemons, type ->
-        if (type == null) {
-            pokemons // Si es null, mostramos todos
-        } else {
-            pokemons.filter { it.type == type } // Filtramos por tipo
+        filterType,
+        minLevel
+    ) { pokemons, type, level ->
+        pokemons.filter { pokemon ->
+            // Debe cumplir AMBAS condiciones:
+            val matchesType = type == null || pokemon.type == type
+            val matchesLevel = pokemon.level >= level.toInt()
+
+            matchesType && matchesLevel
         }
     }.stateIn(
         scope = viewModelScope,
@@ -136,8 +147,8 @@ class PokemonViewModel (private val repository: PokemonRepository) : ViewModel()
         initialValue = emptyList()
     )
 
-    // Función para que la interfaz cambie el filtro
-    fun setFilterType(type: String?) {
-        filterType.value = type
+    // 3. Función para cambiar el nivel desde la vista
+    fun setMinLevel(level: Float) {
+        minLevel.value = level
     }
 }
