@@ -1,21 +1,15 @@
 package valdez.alejandro.room.viewModel
 
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import valdez.alejandro.room.data.PokemonEntity
 import valdez.alejandro.room.data.PokemonRepository
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.combine
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.ExperimentalMaterial3Api
 
 class PokemonViewModel (private val repository: PokemonRepository) : ViewModel(){
     private val availablePokemons = listOf(
@@ -41,6 +35,7 @@ class PokemonViewModel (private val repository: PokemonRepository) : ViewModel()
 
     var pokemonSeEscapo by mutableStateOf(false)
         private set
+    // ... (availablePokemons y funciones de captura se mantienen igual) ...
 
     fun searchPokemon(){
         wildPokemon = availablePokemons.random()
@@ -64,13 +59,6 @@ class PokemonViewModel (private val repository: PokemonRepository) : ViewModel()
         }
     }
 
-    val pokemonsState: StateFlow<List<PokemonEntity>> = repository.allPokemons
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
-
     fun addPokemon(name: String, number: String, type: String, level: Int = 1){
         viewModelScope.launch {
             repository.add(
@@ -84,71 +72,50 @@ class PokemonViewModel (private val repository: PokemonRepository) : ViewModel()
         }
     }
 
-    fun deletePokemon(pokemon: PokemonEntity) {
-        viewModelScope.launch {
-            repository.delete(pokemon)
-        }
-    }
-
-    // Variable para saber si el entrenamiento falló
-    var failedToTrain by mutableStateOf(false)
-        private set
-
-    fun resetTrainMessage() {
-        failedToTrain = false
-    }
-
-    fun levelUpPokemon(pokemon: PokemonEntity) {
-        // Reseteamos el estado al iniciar un nuevo intento
-        failedToTrain = false
-
-        if (pokemon.level < 100) {
-            val success = (1..100).random()
-
-            if (success > 40) { // 60% de éxito
-                val leveledUpPokemon = pokemon.copy(level = pokemon.level + 1)
-                viewModelScope.launch {
-                    repository.update(leveledUpPokemon)
-                }
-            } else {
-                // Seteamos a true si la probabilidad falla
-                failedToTrain = true
-            }
-        }
-    }
-
-    // Estado para guardar el tipo seleccionado (null significa "Todos")
+    // --- ESTADOS PARA FILTROS ---
+    val searchText = MutableStateFlow("")
     val filterType = MutableStateFlow<String?>(null)
-
-    // Función para que la interfaz cambie el filtro
-    fun setFilterType(type: String?) {
-        filterType.value = type
-    }
-
-    // 1. Nuevo estado para el nivel mínimo (empezamos en 1)
     val minLevel = MutableStateFlow(1f)
 
-    // 2. Actualizamos el combine para que use repository, filterType Y minLevel
+    // --- LÓGICA DE BÚSQUEDA EN TIEMPO REAL (Puntos 3, 4 y 5) ---
+    @OptIn(ExperimentalCoroutinesApi::class)
     val filteredPokemonsState: StateFlow<List<PokemonEntity>> = combine(
-        repository.allPokemons,
+        searchText,
         filterType,
         minLevel
-    ) { pokemons, type, level ->
-        pokemons.filter { pokemon ->
-            // Debe cumplir AMBAS condiciones:
-            val matchesType = type == null || pokemon.type == type
-            val matchesLevel = pokemon.level >= level.toInt()
-
-            matchesType && matchesLevel
-        }
+    ) { search, type, level ->
+        Triple(search, type, level.toInt())
+    }.flatMapLatest { (search, type, level) ->
+        // Le pide los datos a la BD usando la Query con LIKE y WHERE
+        repository.getFilteredPokemons(search, type, level)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
 
-    // 3. Función para cambiar el nivel desde la vista
-    fun setMinLevel(level: Float) {
-        minLevel.value = level
+    // --- FUNCIONES DE ACTUALIZACIÓN ---
+    fun onSearchTextChange(text: String) { searchText.value = text }
+    fun setFilterType(type: String?) { filterType.value = type }
+    fun setMinLevel(level: Float) { minLevel.value = level }
+
+    // ... (Funciones add, delete y levelUp se mantienen igual) ...
+
+    // Agrega esta para que no falte:
+    var failedToTrain by mutableStateOf(false)
+        private set
+    fun resetTrainMessage() { failedToTrain = false }
+
+    fun deletePokemon(pokemon: PokemonEntity) {
+        viewModelScope.launch { repository.delete(pokemon) }
+    }
+
+    fun levelUpPokemon(pokemon: PokemonEntity) {
+        failedToTrain = false
+        if (pokemon.level < 100) {
+            if ((1..100).random() > 40) {
+                viewModelScope.launch { repository.update(pokemon.copy(level = pokemon.level + 1)) }
+            } else { failedToTrain = true }
+        }
     }
 }

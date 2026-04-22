@@ -1,5 +1,7 @@
 package valdez.alejandro.room.data
 
+import kotlinx.coroutines.flow.Flow
+
 class PokemonRepository(private val pokemonDao: PokemonDao){
     val allPokemons = pokemonDao.getAll()
 
@@ -13,5 +15,9 @@ class PokemonRepository(private val pokemonDao: PokemonDao){
 
     suspend fun update(pokemon: PokemonEntity){
         pokemonDao.update(pokemon)
+    }
+
+    fun getFilteredPokemons(search: String, type: String?, minLevel: Int): Flow<List<PokemonEntity>> {
+        return pokemonDao.getFilteredPokemons(search, type, minLevel)
     }
 }

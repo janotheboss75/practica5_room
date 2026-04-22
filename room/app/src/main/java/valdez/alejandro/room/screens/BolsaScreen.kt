@@ -10,10 +10,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items // IMPORTANTE: Este arregla el error de las listas
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Search // IMPORTANTE para el ícono de la lupa
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -23,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField // IMPORTANTE para la barra de búsqueda
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,15 +40,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import valdez.alejandro.room.data.PokemonEntity
 import valdez.alejandro.room.viewModel.PokemonViewModel
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BolsaScreen(pokemonViewModel: PokemonViewModel){
-    // 1. Usamos la lista filtrada que creamos en el ViewModel
+    // 1. Escuchamos TODOS los estados del ViewModel
     val pokemons by pokemonViewModel.filteredPokemonsState.collectAsStateWithLifecycle()
     val selectedType by pokemonViewModel.filterType.collectAsStateWithLifecycle()
+    val currentMinLevel by pokemonViewModel.minLevel.collectAsStateWithLifecycle()
+    val searchText by pokemonViewModel.searchText.collectAsStateWithLifecycle() // El estado de la búsqueda
 
-    // Lista de tipos (puedes ajustarla según los tipos que tengas)
+    // Lista de tipos
     val tipos = listOf("Todos", "Electric", "Grass", "Fire", "Water", "Bug", "Normal", "Poison", "Fairy")
 
     // Estados para controlar el diálogo de eliminación
@@ -66,12 +69,40 @@ fun BolsaScreen(pokemonViewModel: PokemonViewModel){
             style = MaterialTheme.typography.headlineLarge
         )
 
-        // 2. Fila de Filtros (Los "Chips")
+        Spacer(Modifier.height(10.dp))
+
+        // --- 2. Barra de Búsqueda ---
+        OutlinedTextField(
+            value = searchText,
+            onValueChange = { pokemonViewModel.onSearchTextChange(it) },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Buscar por nombre o tipo...") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar") },
+            singleLine = true
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        // --- 3. Filtro de Nivel Mínimo (Slider) ---
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+            Text(
+                text = "Nivel mínimo: ${currentMinLevel.toInt()}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Slider(
+                value = currentMinLevel,
+                onValueChange = { pokemonViewModel.setMinLevel(it) },
+                valueRange = 1f..100f, // Rango de nivel 1 a 100
+                steps = 100 // Para que se mueva de 1 en 1
+            )
+        }
+
+        // --- 4. Fila de Filtros de Tipo (Los "Chips") ---
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 12.dp)
+                .padding(vertical = 8.dp)
         ) {
             items(tipos) { tipo ->
                 val isSelected = if (tipo == "Todos") selectedType == null else selectedType == tipo
@@ -90,25 +121,7 @@ fun BolsaScreen(pokemonViewModel: PokemonViewModel){
             }
         }
 
-        // Obtenemos el nivel mínimo actual del ViewModel
-        val currentMinLevel by pokemonViewModel.minLevel.collectAsStateWithLifecycle()
-
-        Spacer(Modifier.height(16.dp))
-
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-            Text(
-                text = "Nivel mínimo: ${currentMinLevel.toInt()}",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Slider(
-                value = currentMinLevel,
-                onValueChange = { pokemonViewModel.setMinLevel(it) },
-                valueRange = 1f..100f, // Rango de nivel 1 a 100
-                steps = 100 // Para que se mueva de 1 en 1
-            )
-        }
-
-        // 3. Lista de Pokémon
+        // --- 5. Lista de Pokémon ---
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(5.dp, 12.dp)
@@ -154,7 +167,6 @@ fun BolsaScreen(pokemonViewModel: PokemonViewModel){
 
     // --- SECCIÓN DE DIÁLOGOS ---
 
-    // Confirmación para eliminar
     if (showDialog && pokemonToDelete != null) {
         AlertDialog(
             onDismissRequest = {
@@ -179,7 +191,6 @@ fun BolsaScreen(pokemonViewModel: PokemonViewModel){
         )
     }
 
-    // Aviso de entrenamiento fallido
     if (pokemonViewModel.failedToTrain) {
         AlertDialog(
             onDismissRequest = { pokemonViewModel.resetTrainMessage() },

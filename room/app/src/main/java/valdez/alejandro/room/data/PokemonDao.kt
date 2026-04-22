@@ -21,4 +21,14 @@ interface PokemonDao {
 
     @Update
     suspend fun update(pokemon: PokemonEntity)
+
+    // Consulta "Maestra": Filtra por nombre (LIKE), tipo y nivel mínimo
+    @Query("""
+        SELECT * FROM pokemon_table 
+        WHERE (name LIKE '%' || :search || '%' OR type LIKE '%' || :search || '%')
+        AND (:type IS NULL OR type = :type)
+        AND level >= :minLevel
+        ORDER BY number ASC
+    """)
+    fun getFilteredPokemons(search: String, type: String?, minLevel: Int): Flow<List<PokemonEntity>>
 }
